@@ -26,7 +26,7 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>com.br.Code.main.Checker_Consorcio</mainClass>
+                  <mainClass>com.br.Code.main.CheckerConsorcio</mainClass>
                 </transformer>
               </transformers>
               <filters>

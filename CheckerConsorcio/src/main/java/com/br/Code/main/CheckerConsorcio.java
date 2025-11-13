@@ -1,11 +1,12 @@
 package com.br.Code.main;
 
 import com.itextpdf.text.*;
+import com.itextpdf.text.Font;
 import com.itextpdf.text.Image;
 import com.itextpdf.text.pdf.PdfWriter;
-import com.itextpdf.text.Font;
-import com.itextpdf.text.FontFactory;
-import org.jfree.chart.*;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartUtils;
+import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.PlotOrientation;
@@ -16,13 +17,19 @@ import org.json.JSONObject;
 
 import java.awt.*;
 import java.awt.geom.Ellipse2D;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -31,26 +38,24 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.random.RandomGenerator;
 
-public class Checker_Consorcio {
+public class CheckerConsorcio {
 
     /* --------------------------------------------------------------
           CONFIGURAÇÃO DO SEU CONSÓRCIO
      -------------------------------------------------------------- */
     private static final int USER_CONSORTIUM_NUMBER = 74;
     private static final String FORMATTED_NUMBER = String.format("%03d", USER_CONSORTIUM_NUMBER);
+    private static final String PDF_OUTPUT = "Relatorio_Consorcio_" + FORMATTED_NUMBER + ".pdf";
     private static final LocalDate SUA_ENTRADA = LocalDate.of(2025, 10, 28);
-
     private static final int TOTAL_PARCELAS = 84;
     private static final int PARCELAS_PAGAS = 2;
     private static final int PARCELAS_RESTANTES = TOTAL_PARCELAS - PARCELAS_PAGAS;
-
     private static final String BASE_API_URL = "https://loteriascaixa-api.herokuapp.com/api/federal/";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter YYYYMMDD_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter MES_ANO = DateTimeFormatter.ofPattern("MMM/yy");
     private static final String CACHE_FILE = "historico_cache.json";
     private static final String ASSEMBLEIAS_FILE = "datasAssembleiasSorteados.txt";
-    private static final String PDF_OUTPUT = "Relatorio_Consorcio_" + FORMATTED_NUMBER + ".pdf";
     private static final String CHART_OUTPUT = "grafico_evolucao.png";
     private static final long CACHE_VALIDITY_HOURS = 24;
 
@@ -108,8 +113,11 @@ public class Checker_Consorcio {
         try {
             latestJson = CompletableFuture.supplyAsync(() -> safeGet(BASE_API_URL + "latest")).get(30, TimeUnit.SECONDS);
             allHistoricalJson = CompletableFuture.supplyAsync(() -> {
-                try { return getCachedHistoricalResults(); }
-                catch (Exception e) { return safeGet(BASE_API_URL); }
+                try {
+                    return getCachedHistoricalResults();
+                } catch (Exception e) {
+                    return safeGet(BASE_API_URL);
+                }
             }).get(30, TimeUnit.SECONDS);
         } catch (Exception e) {
             System.err.println("Erro na API: " + e.getMessage());
@@ -143,8 +151,11 @@ public class Checker_Consorcio {
         List<JSONObject> todosSorteios = parseJsonSafely(allHistoricalJson);
         List<JSONObject> sorteiosRelevantes = todosSorteios.stream()
                 .filter(d -> {
-                    try { return !LocalDate.parse(d.getString("data"), DATE_FORMATTER).isBefore(SUA_ENTRADA.minusDays(30)); }
-                    catch (Exception e) { return false; }
+                    try {
+                        return !LocalDate.parse(d.getString("data"), DATE_FORMATTER).isBefore(SUA_ENTRADA.minusDays(30));
+                    } catch (Exception e) {
+                        return false;
+                    }
                 })
                 .toList();
 
@@ -519,7 +530,14 @@ public class Checker_Consorcio {
     /* ==============================================================
        MÉTODOS AUXILIARES
        ============================================================== */
-    private static String safeGet(String url) { try { return getLotteryResults(url); } catch (Exception e) { return null; } }
+    private static String safeGet(String url) {
+        try {
+            return getLotteryResults(url);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static List<JSONObject> parseJsonSafely(String json) {
         List<JSONObject> list = new ArrayList<>();
         try {
@@ -529,9 +547,12 @@ public class Checker_Consorcio {
                 if (obj instanceof JSONObject jo) list.add(jo);
                 else if (obj instanceof Map<?, ?> m) list.add(new JSONObject(m));
             }
-        } catch (Exception e) { System.err.println("JSON inválido: " + e.getMessage()); }
+        } catch (Exception e) {
+            System.err.println("JSON inválido: " + e.getMessage());
+        }
         return list;
     }
+
     private static LocalDate findLatestDrawBeforeDate(List<JSONObject> draws, LocalDate target) {
         return draws.stream()
                 .map(d -> LocalDate.parse(d.getString("data"), DATE_FORMATTER))
@@ -539,6 +560,7 @@ public class Checker_Consorcio {
                 .max(LocalDate::compareTo)
                 .orElse(null);
     }
+
     private static JSONObject findDrawByDate(List<JSONObject> draws, LocalDate target) {
         String s = target.format(DATE_FORMATTER);
         return draws.stream()
@@ -546,6 +568,7 @@ public class Checker_Consorcio {
                 .findFirst()
                 .orElse(null);
     }
+
     private static ContemplationResult checkContemplation(List<Integer> hundreds) {
         for (int i = 0; i < hundreds.size(); i++) {
             int h = hundreds.get(i);
@@ -561,12 +584,14 @@ public class Checker_Consorcio {
         }
         return new ContemplationResult(false, false, "Nenhuma", -1, -1);
     }
+
     private static void checkContemplationAndReturn(List<Integer> hundreds) {
         ContemplationResult r = checkContemplation(hundreds);
         if (r.isDirect()) System.out.println("PARABÉNS! DIRETA!");
         else if (r.isAdjusted()) System.out.println("Contemplado por AJUSTE!");
         else System.out.println("Não contemplado.");
     }
+
     private static List<String> parsePrizes(JSONObject o) {
         List<String> list = new ArrayList<>();
         JSONArray a = o.getJSONArray("dezenas");
@@ -575,6 +600,7 @@ public class Checker_Consorcio {
         }
         return list;
     }
+
     private static List<Integer> extractHundreds(List<String> prizes) {
         List<Integer> h = new ArrayList<>();
         for (String s : prizes) {
@@ -586,7 +612,7 @@ public class Checker_Consorcio {
         }
         return h;
     }
-    private record AssemblyData(LocalDate date, Integer sorteada, Integer vencedora) {}
+
     private static List<AssemblyData> readAssemblySorteados() {
         List<AssemblyData> list = new ArrayList<>();
         Path p = Paths.get(ASSEMBLEIAS_FILE);
@@ -609,6 +635,7 @@ public class Checker_Consorcio {
         }
         return list;
     }
+
     private static String getLotteryResults(String url) throws IOException, InterruptedException {
         ExponentialBackoff b = new ExponentialBackoff();
         for (int i = 0; ; i++) {
@@ -618,7 +645,11 @@ public class Checker_Consorcio {
                 c.setRequestMethod("GET");
                 c.setConnectTimeout(15000);
                 c.setReadTimeout(30000);
-                if (c.getResponseCode() != 200) { if (i == 2) return null; b.sleep(); continue; }
+                if (c.getResponseCode() != 200) {
+                    if (i == 2) return null;
+                    b.sleep();
+                    continue;
+                }
                 BufferedReader in = new BufferedReader(new InputStreamReader(c.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String l;
@@ -626,9 +657,13 @@ public class Checker_Consorcio {
                 in.close();
                 c.disconnect();
                 return sb.toString();
-            } catch (IOException e) { if (i == 2) throw e; b.sleep(); }
+            } catch (IOException e) {
+                if (i == 2) throw e;
+                b.sleep();
+            }
         }
     }
+
     private static String getCachedHistoricalResults() throws IOException, InterruptedException {
         Path p = Paths.get(CACHE_FILE);
         if (Files.exists(p)) {
@@ -642,17 +677,6 @@ public class Checker_Consorcio {
         if (r != null) Files.writeString(p, r);
         return r;
     }
-    private record ContemplationResult(boolean isDirect, boolean isAdjusted, String type, int hundred, int position) {
-        public boolean isContemplated() { return isDirect || isAdjusted; }
-    }
-    private static class ExponentialBackoff {
-        private long delay = 1000;
-        public void sleep() throws InterruptedException { Thread.sleep(delay); delay *= 2; }
-    }
-
-    // ==============================================================
-    // NOVOS MÉTODOS ADITIVOS (v8.4) - NÃO ALTERAM NADA EXISTENTE
-    // ==============================================================
 
     private static void exibirEstatisticasDiretaAjuste() throws IOException, InterruptedException {
         System.out.println("\nESTATÍSTICAS CUMULATIVAS (Direta x Ajuste)");
@@ -712,6 +736,10 @@ public class Checker_Consorcio {
         }
     }
 
+    // ==============================================================
+    // NOVOS MÉTODOS ADITIVOS (v8.4) - NÃO ALTERAM NADA EXISTENTE
+    // ==============================================================
+
     private static void calcularRiscoDesistencia() {
         System.out.println("\nANÁLISE DE RISCO DE DESISTÊNCIA");
         System.out.println("-".repeat(50));
@@ -723,7 +751,7 @@ public class Checker_Consorcio {
         System.out.printf("Taxa mensal média: %.2f%%\n", taxaMensal * 100);
         System.out.printf("Taxa anual projetada: %.1f%% → %s\n", taxaAnual * 100, nivel);
         System.out.printf("Ativos em 12 meses: ~%d (de %d)\n",
-                (int)(ATIVOS * Math.pow(1 - taxaMensal, 12)), ATIVOS);
+                (int) (ATIVOS * Math.pow(1 - taxaMensal, 12)), ATIVOS);
         System.out.println("→ A cada 100 desistências, sua chance mensal sobe ~0,4%.");
     }
 
@@ -770,10 +798,6 @@ public class Checker_Consorcio {
         }
         return mesesContemplacao;
     }
-
-    // ==============================================================
-    // v8.5 – MÉTODOS PROFISSIONAIS ADITIVOS (NÃO ALTERAM NADA)
-    // ==============================================================
 
     // 1. CDF + PDF: CURVAS DE PROBABILIDADE
     private static void exibirCurvasProbabilidade() {
@@ -834,11 +858,15 @@ public class Checker_Consorcio {
         }
     }
 
+    // ==============================================================
+    // v8.5 – MÉTODOS PROFISSIONAIS ADITIVOS (NÃO ALTERAM NADA)
+    // ==============================================================
+
     // 3. MODELO DE LANCE DINÂMICO (log-normal) — CORRIGIDO
     private static double simularLanceConcorrente(RandomGenerator rng) {
         // parâmetros realistas de consórcio automotivo/imobiliário
         double mediaReal = 22000;   // média real de lance
-        double desvio    = 7000;    // dispersão (de 5k a 35k)
+        double desvio = 7000;    // dispersão (de 5k a 35k)
 
         double logged = Math.log(1 + (desvio * desvio) / (mediaReal * mediaReal));
         double mu = Math.log(mediaReal) - 0.5 * logged;
@@ -1025,14 +1053,13 @@ public class Checker_Consorcio {
         return valor;
     }
 
-
     // -------------------------------------------------------------
 // 2) LANCES RACIONAIS — comportamento humano realista
 // -------------------------------------------------------------
     private static double ajustarLanceRacional(double lance) {
 
         // ajuste para não ultrapassar crédito
-        lance = Math.min(lance, Checker_Consorcio.VALOR_CREDITO * 0.50);
+        lance = Math.min(lance, CheckerConsorcio.VALOR_CREDITO * 0.50);
 
         // arredondar para múltiplos de 1.000
         lance = Math.round(lance / 1000.0) * 1000.0;
@@ -1040,7 +1067,6 @@ public class Checker_Consorcio {
         // nunca pode ser menor que 10.000
         return Math.max(10000, lance);
     }
-
 
     // -------------------------------------------------------------
 // 3) SIMULAÇÃO DINÂMICA PARA 12 MESES
@@ -1050,7 +1076,7 @@ public class Checker_Consorcio {
     private static double simularCompeticao12Meses(double seuLance) {
 
         RandomGenerator rng = RandomGenerator.getDefault();
-        int ativos = Checker_Consorcio.ATIVOS;
+        int ativos = CheckerConsorcio.ATIVOS;
         int meses = 12;
 
         for (int mes = 1; mes <= meses; mes++) {
@@ -1102,7 +1128,6 @@ public class Checker_Consorcio {
         return -1; // não venceu
     }
 
-
     // -------------------------------------------------------------
 // 4) GERAÇÃO DE PERCENTIS DO MODELO AVANÇADO
 // -------------------------------------------------------------
@@ -1120,11 +1145,11 @@ public class Checker_Consorcio {
 
         Arrays.sort(lances);
 
-        double p10 = lances[(int)(simulacoes * 0.10)];
-        double p25 = lances[(int)(simulacoes * 0.25)];
-        double p50 = lances[(int)(simulacoes * 0.50)];
-        double p75 = lances[(int)(simulacoes * 0.75)];
-        double p90 = lances[(int)(simulacoes * 0.90)];
+        double p10 = lances[(int) (simulacoes * 0.10)];
+        double p25 = lances[(int) (simulacoes * 0.25)];
+        double p50 = lances[(int) (simulacoes * 0.50)];
+        double p75 = lances[(int) (simulacoes * 0.75)];
+        double p90 = lances[(int) (simulacoes * 0.90)];
 
         System.out.println("\nCURVA DE LANCES (percentis)");
         System.out.println("--------------------------------------------------");
@@ -1135,7 +1160,6 @@ public class Checker_Consorcio {
         System.out.printf("P90 → %.0f\n", p90);
         System.out.println("--------------------------------------------------");
     }
-
 
     // -------------------------------------------------------------
 // 5) MÉTODO PRINCIPAL PARA CHAMAR A SIMULAÇÃO PROFISSIONAL
@@ -1189,6 +1213,24 @@ public class Checker_Consorcio {
         }
 
         return (double) vitorias / simulacoes;
+    }
+
+    private record AssemblyData(LocalDate date, Integer sorteada, Integer vencedora) {
+    }
+
+    private record ContemplationResult(boolean isDirect, boolean isAdjusted, String type, int hundred, int position) {
+        public boolean isContemplated() {
+            return isDirect || isAdjusted;
+        }
+    }
+
+    private static class ExponentialBackoff {
+        private long delay = 1000;
+
+        public void sleep() throws InterruptedException {
+            Thread.sleep(delay);
+            delay *= 2;
+        }
     }
 
 }
