@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/fii_dashboard
+    username: postgres
+    password: admin
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+server:
+  port: 8080
+
+fii:
+  scraper:
+    min-dy: 9.5
+    max-pvp: 1.10   # Mantém disciplina no preço
+    min-volume: 80000  # 800 mil já é boa liquidez
+    cron: "0 0 9,15,21 * * *"
+    enabled: true
+
+app:
+  config:
+    min_dy: 0.08        # 8%
+    max_pvp: 1.0
+    min_volume: 100000  # 100 mil (ex: 14,76 M → 14.760.000)
